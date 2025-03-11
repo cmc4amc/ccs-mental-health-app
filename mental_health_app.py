@@ -1,47 +1,60 @@
 import streamlit as st
+import firebase_admin
+from firebase_admin import auth, credentials, firestore
+import datetime
 
-# App Title
+# Initialize Firebase
+if not firebase_admin._apps:
+    cred = credentials.Certificate("ccs-wellness-app-firebase-adminsdk-fbsvc-e6536a365c.json")
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
+
+# Streamlit App UI
 st.title("Clay Counseling Mental Health App")
 
-# Home Screen - Mood Tracker & Navigation
+# User Authentication
+st.sidebar.header("User Authentication")
+choice = st.sidebar.selectbox("Login/Signup", ["Login", "Signup"])
+email = st.sidebar.text_input("Email")
+password = st.sidebar.text_input("Password", type="password")
+
+if st.sidebar.button("Submit"):
+    try:
+        if choice == "Signup":
+            user = auth.create_user(email=email, password=password)
+            st.sidebar.success("Account created! Please log in.")
+        else:
+            user = auth.get_user_by_email(email)
+            st.sidebar.success("Logged in successfully!")
+    except Exception as e:
+        st.sidebar.error(f"Error: {e}")
+
+# Mood Tracker
 st.header("How are you feeling today?")
 mood = st.radio("Select your mood:", ["😊 Happy", "😐 Neutral", "😟 Anxious", "😢 Sad"])
+if st.button("Save Mood"):
+    db.collection("users").document(email).collection("mood_logs").add({
+        "mood": mood,
+        "timestamp": datetime.datetime.now()
+    })
+    st.success("Mood saved!")
 
-st.subheader("Quick Actions")
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("Therapy"):
-        st.session_state.page = "therapy"
-with col2:
-    if st.button("Meditation"):
-        st.session_state.page = "meditation"
-with col3:
-    if st.button("Teletherapy"):
-        st.session_state.page = "teletherapy"
+# Therapy Notes
+st.header("Therapy Journal")
+therapy_note = st.text_area("Write your thoughts:")
+if st.button("Save Note"):
+    db.collection("users").document(email).collection("therapy_notes").add({
+        "note": therapy_note,
+        "timestamp": datetime.datetime.now()
+    })
+    st.success("Note saved!")
 
-# Therapy Section - CBT Exercises & Tips
-if st.session_state.get("page") == "therapy":
-    st.header("Guided Therapy Exercises")
-    st.text_area("Write about what's on your mind:")
-    st.write("💡 Therapy Tip: Take deep breaths and focus on the present moment.")
-    st.button("Back to Home", on_click=lambda: st.session_state.update(page="home"))
+# AI Chatbot
+st.header("AI Chatbot for Mental Health Support")
+user_input = st.text_input("Ask the chatbot anything about mental health:")
+if st.button("Get Response"):
+    response = f"I understand that you're feeling {mood}. Try a breathing exercise or journaling to help!"
+    st.write(response)
 
-# Meditation & Relaxation
-if st.session_state.get("page") == "meditation":
-    st.header("Meditation & Relaxation")
-    st.write("🌿 Choose a relaxation exercise:")
-    st.selectbox("Select Exercise", ["Breathing Exercise", "Mindfulness Meditation", "Progressive Muscle Relaxation"])
-    st.button("Start Exercise")
-    st.button("Back to Home", on_click=lambda: st.session_state.update(page="home"))
-
-# Teletherapy Booking
-if st.session_state.get("page") == "teletherapy":
-    st.header("Book a Teletherapy Session")
-    st.selectbox("Select a Therapist", ["Dr. April Clay", "John Doe", "Jane Smith"])
-    st.date_input("Choose Date")
-    st.time_input("Choose Time")
-    st.button("Confirm Booking")
-    st.button("Back to Home", on_click=lambda: st.session_state.update(page="home"))
-
-# Display the prototype
-st.write("🚀 This is an interactive prototype. Future versions will include full authentication & AI chatbot.")
+st.sidebar.button("Logout")
